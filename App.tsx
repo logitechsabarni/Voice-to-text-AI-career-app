@@ -54,13 +54,16 @@ declare global {
   interface SpeechGrammarList {}
   interface SpeechRecognitionResultList {
     [index: number]: SpeechRecognitionResult;
-    length: number;
+    // Fix: Added 'readonly' modifier for 'length' to match DOM API
+    readonly length: number;
     item(index: number): SpeechRecognitionResult;
   }
   interface SpeechRecognitionResult {
     [index: number]: SpeechRecognitionAlternative;
-    isFinal: boolean;
-    length: number;
+    // Fix: Added 'readonly' modifier for 'isFinal' to match DOM API
+    readonly isFinal: boolean;
+    // Fix: Added 'readonly' modifier for 'length' to match DOM API
+    readonly length: number;
     item(index: number): SpeechRecognitionAlternative;
   }
   interface SpeechRecognitionAlternative {
@@ -100,6 +103,23 @@ function App() {
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const speechRecognitionRef = useRef<SpeechRecognition | null>(null);
+
+  // CSS for slide-up animation (can be moved to a CSS file if preferred)
+  const animateCss = `
+    @keyframes fade-in-up {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    .animate-fade-in-up {
+      animation: fade-in-up 0.3s ease-out forwards;
+    }
+  `;
 
   // Effect to scroll to the bottom of the chat
   useEffect(() => {
@@ -227,7 +247,9 @@ function App() {
       let parts: { text?: string }[] = [];
       if (msg.aiResponsePlan) {
         // If it was an AI response plan, reconstruct a text summary for context
-        parts.push({ text: `AI provided a plan: "${msg.aiResponsePlan.contextSummary}". Detailed guidance: "${msg.aiResponsePlan.detailedGuidance}". Next actions: ${msg.aiResponsePlan.nextInteractionOptions.join(', ')}` });
+        // Ensure this summary is concise enough not to bloat the context, but informative.
+        const summary = `AI responded with a plan (version ${msg.aiResponsePlan.roadmapStatus.roadmapVersion}) for "${msg.aiResponsePlan.contextSummary}". Current phase: ${msg.aiResponsePlan.roadmapStatus.currentPhase}.`;
+        parts.push({ text: summary });
       } else if (msg.text) {
         parts.push({ text: msg.text });
       }
@@ -268,7 +290,7 @@ function App() {
             ...prev,
             goal: planResult.contextSummary, // AI's context summary is often the updated goal
             // Fix: roadmapVersion is now a number directly from planResult
-            roadmap_version: planResult.roadmapStatus.roadmapVersion || prev.roadmap_version + 1,
+            roadmap_version: planResult.roadmapStatus.roadmapVersion,
             current_phase: planResult.roadmapStatus.currentPhase,
             // Simple update for roadmap, a more robust update would merge/diff
             roadmap: planResult.updatedRoadmap.reduce((acc, phase) => {
@@ -279,6 +301,7 @@ function App() {
                 completed_tasks: planResult.progressTracking.completed,
                 pending_tasks: planResult.progressTracking.nextUp, // Assuming Next Up are pending
             },
+            user_feedback: "", // Clear user feedback after AI processes it
             last_updated: new Date().toISOString(),
         }));
       }
@@ -290,6 +313,7 @@ function App() {
                 ...msg,
                 text: responseText, // Keep raw text for fallback/debugging
                 aiResponsePlan: parsedAIResponsePlan, // Store parsed plan
+                rawResponseText: responseText, // Store raw text for copy feature
                 isStreaming: false,
                 isGeneratingAudio: true, // Indicate audio generation for this message
               }
@@ -311,7 +335,7 @@ function App() {
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === geminiMessagePlaceholder.id
-            ? { ...msg, text: `Error: ${e.message}`, isStreaming: false, isGeneratingAudio: false }
+            ? { ...msg, text: `Error: ${e.message}`, isStreaming: false, isGeneratingAudio: false, rawResponseText: `Error: ${e.message}` }
             : msg
         )
       );
@@ -326,11 +350,26 @@ function App() {
     handleSendMessage(suggestion);
   }, [handleSendMessage]);
 
+  const handleResetChat = useCallback(() => {
+    if (window.confirm("Are you sure you want to reset the conversation? This will clear all history and the current plan.")) {
+      setMessages([]);
+      setConversationState(INITIAL_CONVERSATION_STATE);
+      setError(null);
+      stopPlayingAudio(); // Stop any ongoing speech
+      resetSpeechRecognition(); // Reset mic
+      resetGeminiChat(); // Reset Gemini's internal chat history
+      console.log('Chat reset.');
+    }
+  }, [resetSpeechRecognition]);
+
   return (
     <div className="flex flex-col h-full bg-white rounded-lg shadow-xl overflow-hidden">
+      {/* Inject custom CSS for animation */}
+      <style>{animateCss}</style>
+
       <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-md flex items-center justify-between">
         <h1 className="text-xl font-bold md:text-2xl">Thought-to-Action AI Agent</h1>
-        <div className="flex items-center space-x-2">
+        <div className="flex items-center space-x-4">
           {isSending && (
             <span className="text-sm font-medium animate-pulse">Thinking...</span>
           )}
@@ -343,6 +382,16 @@ function App() {
           {error && (
             <span className="text-sm text-red-200 font-medium">Error: {error}</span>
           )}
+          <button
+            onClick={handleResetChat}
+            className="p-2 rounded-full bg-blue-700 hover:bg-blue-800 transition-colors duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+            aria-label="Reset chat"
+            title="Start a new conversation"
+          >
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+          </button>
         </div>
       </header>
 

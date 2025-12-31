@@ -26,7 +26,7 @@ export interface AIResponseRoadmapPhase {
 export interface AIResponsePlan {
   contextSummary: string;
   roadmapStatus: {
-    roadmapVersion: number; // Changed from string to number
+    roadmapVersion: number;
     currentPhase: string;
     keyFocus: string;
   };
@@ -48,6 +48,7 @@ export interface ConversationMessage {
   aiResponsePlan?: AIResponsePlan; // Can now contain the structured AI response
   isStreaming?: boolean;
   isGeneratingAudio?: boolean; // New prop to indicate audio generation
+  rawResponseText?: string; // To store the full raw text for copy feature
 }
 
 // --- Action Plan (Inferred for ActionPlanDisplay.tsx component) ---

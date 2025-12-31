@@ -19,6 +19,36 @@ const AIResponsePlanDisplay: React.FC<AIResponsePlanDisplayProps> = ({ plan }) =
     </ul>
   );
 
+  const renderProgressItems = (items: string[], type: 'completed' | 'inProgress' | 'nextUp') => {
+    const icon =
+      type === 'completed'
+        ? '✅'
+        : type === 'inProgress'
+        ? '⏳'
+        : '▶️';
+    const color =
+      type === 'completed'
+        ? 'text-green-700'
+        : type === 'inProgress'
+        ? 'text-yellow-700'
+        : 'text-blue-700';
+
+    if (items.length === 0 || (items.length === 1 && items[0] === 'None')) {
+      return <p className="ml-4 text-gray-600 italic">None</p>;
+    }
+
+    return (
+      <ul className="list-none space-y-1 text-gray-800 ml-4">
+        {items.map((item, index) => (
+          <li key={`progress-${type}-${index}`} className="flex items-start">
+            <span className={`mr-2 ${color}`}>{icon}</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+    );
+  };
+
   return (
     <div className="p-2">
       {/* Context Summary */}
@@ -59,7 +89,8 @@ const AIResponsePlanDisplay: React.FC<AIResponsePlanDisplayProps> = ({ plan }) =
       {plan.detailedGuidance && (
         <div className="mb-4">
           <h3 className="text-xl font-bold text-green-700 mb-2">Detailed Guidance:</h3>
-          <p className="text-gray-700 leading-relaxed">{plan.detailedGuidance}</p>
+          {/* Using pre-wrap to respect newlines for paragraph breaks */}
+          <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{plan.detailedGuidance}</p>
         </div>
       )}
 
@@ -69,20 +100,20 @@ const AIResponsePlanDisplay: React.FC<AIResponsePlanDisplayProps> = ({ plan }) =
           <h3 className="text-xl font-bold text-green-700 mb-2">Progress Tracking:</h3>
           {plan.progressTracking.completed.length > 0 && (
             <>
-              <p className="font-semibold text-gray-800">Completed:</p>
-              {renderTasks(plan.progressTracking.completed)}
+              <p className="font-semibold text-gray-800 mt-2">Completed:</p>
+              {renderProgressItems(plan.progressTracking.completed, 'completed')}
             </>
           )}
           {plan.progressTracking.inProgress.length > 0 && (
             <>
               <p className="font-semibold text-gray-800 mt-2">In Progress:</p>
-              {renderTasks(plan.progressTracking.inProgress)}
+              {renderProgressItems(plan.progressTracking.inProgress, 'inProgress')}
             </>
           )}
           {plan.progressTracking.nextUp.length > 0 && (
             <>
               <p className="font-semibold text-gray-800 mt-2">Next Up:</p>
-              {renderTasks(plan.progressTracking.nextUp)}
+              {renderProgressItems(plan.progressTracking.nextUp, 'nextUp')}
             </>
           )}
         </div>
