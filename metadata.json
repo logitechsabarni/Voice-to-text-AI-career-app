@@ -1,0 +1,7 @@
+{
+  "name": "Thought-to-Action AI Agent",
+  "description": "A voice-driven AI agent that converts spoken goals into actionable plans using Gemini Live API.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
