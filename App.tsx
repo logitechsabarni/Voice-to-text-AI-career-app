@@ -1,14 +1,92 @@
+
 // Add a reference to the 'dom' library to ensure SpeechRecognition types are available.
 /// <reference lib="dom" />
 
+// Fix: Add declare global block for SpeechRecognition types to resolve TypeScript errors
+declare global {
+  interface Window {
+    SpeechRecognition: {
+      new (): SpeechRecognition;
+      prototype: SpeechRecognition;
+    };
+    webkitSpeechRecognition: {
+      new (): SpeechRecognition;
+      prototype: SpeechRecognition;
+    };
+  }
+
+  interface SpeechRecognition extends EventTarget {
+    grammars: SpeechGrammarList;
+    lang: string;
+    continuous: boolean;
+    interimResults: boolean;
+    maxAlternatives: number;
+    serviceURI: string;
+
+    onaudiostart: ((this: SpeechRecognition, ev: Event) => any) | null;
+    onsoundstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+    onspeechstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+    onspeechend: ((this: SpeechRecognition, ev: Event) => any) | null;
+    onsoundend: ((this: SpeechRecognition, ev: Event) => any) | null;
+    onaudioend: ((this: SpeechRecognition, ev: Event) => any) | null;
+    onresult: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+    onnomatch: ((this: SpeechRecognition, ev: SpeechRecognitionEvent) => any) | null;
+    onerror: ((this: SpeechRecognition, ev: SpeechRecognitionErrorEvent) => any) | null;
+    onstart: ((this: SpeechRecognition, ev: Event) => any) | null;
+    onend: ((this: SpeechRecognition, ev: Event) => any) | null;
+
+    start(): void;
+    stop(): void;
+    abort(): void;
+  }
+
+  interface SpeechRecognitionEvent extends Event {
+    readonly resultIndex: number;
+    readonly results: SpeechRecognitionResultList;
+  }
+
+  interface SpeechRecognitionErrorEvent extends Event {
+    readonly error: SpeechRecognitionErrorCode;
+    readonly message: string;
+  }
+
+  // Minimal stubs for types used by SpeechRecognition and SpeechRecognitionEvent
+  interface SpeechGrammarList {}
+  interface SpeechRecognitionResultList {
+    [index: number]: SpeechRecognitionResult;
+    length: number;
+    item(index: number): SpeechRecognitionResult;
+  }
+  interface SpeechRecognitionResult {
+    [index: number]: SpeechRecognitionAlternative;
+    isFinal: boolean;
+    length: number;
+    item(index: number): SpeechRecognitionAlternative;
+  }
+  interface SpeechRecognitionAlternative {
+    readonly transcript: string;
+    readonly confidence: number;
+  }
+  type SpeechRecognitionErrorCode =
+    | 'no-speech'
+    | 'aborted'
+    | 'audio-capture'
+    | 'network'
+    | 'not-allowed'
+    | 'service-not-allowed'
+    | 'bad-grammar'
+    | 'language-not-supported';
+}
+
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import ChatBubble from './components/ChatBubble';
-import MessageInput from './components/MessageInput'; // New input component
+import MessageInput from './components/MessageInput';
 import { initializeGeminiChat, sendChatMessage, synthesizeAndPlaySpeech, stopPlayingAudio, resetGeminiChat } from './services/geminiService';
-import { ConversationMessage, ActionPlan } from './types';
-import { parseActionPlan } from './utils/planParser';
+import { ConversationMessage, AIResponsePlan, ConversationState } from './types';
+import { parseAIResponsePlan } from './utils/planParser';
 import { Content } from '@google/genai';
-import { SYSTEM_INSTRUCTION } from './constants';
+import { SYSTEM_INSTRUCTION, INITIAL_CONVERSATION_STATE } from './constants';
 
 function App() {
   const [isRecording, setIsRecording] = useState(false);
@@ -17,6 +95,8 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [messages, setMessages] = useState<ConversationMessage[]>([]);
   const [currentSpeechText, setCurrentSpeechText] = useState(''); // Text from client-side STT
+  const [conversationState, setConversationState] = useState<ConversationState>(INITIAL_CONVERSATION_STATE);
+
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const speechRecognitionRef = useRef<SpeechRecognition | null>(null);
@@ -39,6 +119,7 @@ function App() {
 
   // Initialize Speech Recognition API
   const initializeSpeechRecognition = useCallback(() => {
+    // Fix: Use window.SpeechRecognition and window.webkitSpeechRecognition directly
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setError('Speech Recognition not supported in this browser.');
@@ -57,6 +138,7 @@ function App() {
       setError(null);
     };
 
+    // Fix: Correct type for event parameter
     recognition.onresult = (event: SpeechRecognitionEvent) => {
       let interimTranscript = '';
       let finalTranscript = '';
@@ -81,6 +163,7 @@ function App() {
       setCurrentSpeechText(''); // Clear after sending or if no final result
     };
 
+    // Fix: Correct type for event parameter
     recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
       console.error('Speech recognition error:', event.error);
       setError(`Speech recognition error: ${event.error}`);
@@ -130,24 +213,38 @@ function App() {
     };
     setMessages((prev) => [...prev, userMessage]);
 
-    // Construct history for Gemini Chat API
+    // Update conversationState with latest user feedback before sending
+    const updatedConversationState = {
+      ...conversationState,
+      user_feedback: text.trim(),
+      last_updated: new Date().toISOString(),
+    };
+    setConversationState(updatedConversationState);
+
+    // Construct history for Gemini Chat API, including the serialized ConversationState
     // The history should alternate between 'user' and 'model'
     const chatHistory: Content[] = messages.map(msg => {
       let parts: { text?: string }[] = [];
-      if (msg.actionPlan) {
-        // If it was an action plan, reconstruct a text representation for context
-        parts.push({ text: `AI provided an action plan titled: "${msg.actionPlan.title}"` });
+      if (msg.aiResponsePlan) {
+        // If it was an AI response plan, reconstruct a text summary for context
+        parts.push({ text: `AI provided a plan: "${msg.aiResponsePlan.contextSummary}". Detailed guidance: "${msg.aiResponsePlan.detailedGuidance}". Next actions: ${msg.aiResponsePlan.nextInteractionOptions.join(', ')}` });
       } else if (msg.text) {
         parts.push({ text: msg.text });
       }
       return { role: msg.sender === 'user' ? 'user' : 'model', parts: parts };
     });
 
-    // Add the current user message to the history for this turn
-    chatHistory.push({ role: 'user', parts: [{ text: text.trim() }] });
-    // Also include the system instruction as the first message for context
-    chatHistory.unshift({ role: 'system', parts: [{ text: SYSTEM_INSTRUCTION }] });
+    // Prepend the ConversationState to the current user message for Gemini
+    const userContentWithState: Content = {
+      role: 'user',
+      parts: [
+        { text: `ConversationState: ${JSON.stringify(updatedConversationState)}` },
+        { text: text.trim() }
+      ]
+    };
 
+    chatHistory.push(userContentWithState); // Add the current user message with state to the history
+    // The system instruction is already configured in initializeGeminiChat, so it doesn't need to be in chatHistory.
 
     const geminiMessagePlaceholder: ConversationMessage = {
       id: crypto.randomUUID(),
@@ -158,14 +255,32 @@ function App() {
     setMessages((prev) => [...prev, geminiMessagePlaceholder]);
 
     try {
-      const geminiResponse = await sendChatMessage(text, chatHistory); // Send the message and history
+      const geminiResponse = await sendChatMessage(text, chatHistory); // Pass actual user message and full history
       const responseText = geminiResponse.text || "No response text.";
 
-      let parsedActionPlan: ActionPlan | null = null;
-      // Attempt to parse the action plan
-      const planResult = parseActionPlan(responseText);
+      let parsedAIResponsePlan: AIResponsePlan | null = null;
+      // Attempt to parse the AI response plan
+      const planResult = parseAIResponsePlan(responseText);
       if (planResult) {
-        parsedActionPlan = planResult;
+        parsedAIResponsePlan = planResult;
+        // Update the conversation state based on the AI's response
+        setConversationState((prev) => ({
+            ...prev,
+            goal: planResult.contextSummary, // AI's context summary is often the updated goal
+            // Fix: roadmapVersion is now a number directly from planResult
+            roadmap_version: planResult.roadmapStatus.roadmapVersion || prev.roadmap_version + 1,
+            current_phase: planResult.roadmapStatus.currentPhase,
+            // Simple update for roadmap, a more robust update would merge/diff
+            roadmap: planResult.updatedRoadmap.reduce((acc, phase) => {
+                acc[phase.title] = { tasks: phase.tasks, outcome: phase.outcome };
+                return acc;
+            }, {} as { [key: string]: { tasks: string[]; outcome: string } }),
+            progress: {
+                completed_tasks: planResult.progressTracking.completed,
+                pending_tasks: planResult.progressTracking.nextUp, // Assuming Next Up are pending
+            },
+            last_updated: new Date().toISOString(),
+        }));
       }
 
       setMessages((prev) =>
@@ -173,8 +288,8 @@ function App() {
           msg.id === geminiMessagePlaceholder.id
             ? {
                 ...msg,
-                text: responseText,
-                actionPlan: parsedActionPlan,
+                text: responseText, // Keep raw text for fallback/debugging
+                aiResponsePlan: parsedAIResponsePlan, // Store parsed plan
                 isStreaming: false,
                 isGeneratingAudio: true, // Indicate audio generation for this message
               }
@@ -196,7 +311,7 @@ function App() {
       setMessages((prev) =>
         prev.map((msg) =>
           msg.id === geminiMessagePlaceholder.id
-            ? { ...msg, text: `Error: ${e.message}`, isStreaming: false }
+            ? { ...msg, text: `Error: ${e.message}`, isStreaming: false, isGeneratingAudio: false }
             : msg
         )
       );
@@ -204,7 +319,7 @@ function App() {
     } finally {
       setIsSending(false);
     }
-  }, [messages, isSending, isSpeaking, initializeSpeechRecognition, currentSpeechText]);
+  }, [messages, isSending, isSpeaking, conversationState, initializeSpeechRecognition, currentSpeechText]);
 
 
   const handleNextActionClick = useCallback((suggestion: string) => {

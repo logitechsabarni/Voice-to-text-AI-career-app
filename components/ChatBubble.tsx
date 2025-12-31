@@ -1,20 +1,22 @@
 
 import React from 'react';
 import { ConversationMessage } from '../types';
-import ActionPlanDisplay from './ActionPlanDisplay'; // Import the new ActionPlanDisplay
-import NextActionsSuggestions from './NextActionsSuggestions'; // Import the new component
+import AIResponsePlanDisplay from './AIResponsePlanDisplay'; // Renamed and updated display component
+import NextActionsSuggestions from './NextActionsSuggestions';
 
 interface ChatBubbleProps {
   message: ConversationMessage;
-  onNextActionClick?: (suggestion: string) => void; // Optional handler for next actions
+  onNextActionClick?: (suggestion: string) => void;
 }
 
 const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onNextActionClick }) => {
   const isUser = message.sender === 'user';
+  const isAIPlan = message.aiResponsePlan !== undefined;
+
   const bubbleClasses = `
     p-3 rounded-lg max-w-[80%]
     ${isUser ? 'bg-blue-500 text-white self-end rounded-br-none' : 'bg-gray-200 text-gray-800 self-start rounded-bl-none'}
-    ${message.actionPlan ? 'bg-gradient-to-br from-green-50 to-green-100 border border-green-200 text-gray-800' : ''}
+    ${isAIPlan ? 'bg-gradient-to-br from-green-50 to-green-100 border border-green-200 text-gray-800' : ''}
     ${message.isGeneratingAudio ? 'animate-pulse' : ''}
   `;
   const textClasses = `${message.isStreaming ? 'italic text-gray-600' : ''}`;
@@ -22,12 +24,12 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onNextActionClick }) =
   return (
     <div className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
       <div className={bubbleClasses}>
-        {message.actionPlan ? (
+        {isAIPlan && message.aiResponsePlan ? (
           <>
-            <ActionPlanDisplay plan={message.actionPlan} />
-            {onNextActionClick && message.actionPlan.nextActions && message.actionPlan.nextActions.length > 0 && (
+            <AIResponsePlanDisplay plan={message.aiResponsePlan} />
+            {onNextActionClick && message.aiResponsePlan.nextInteractionOptions && message.aiResponsePlan.nextInteractionOptions.length > 0 && (
               <NextActionsSuggestions
-                suggestions={message.actionPlan.nextActions}
+                suggestions={message.aiResponsePlan.nextInteractionOptions}
                 onSuggestionClick={onNextActionClick}
               />
             )}

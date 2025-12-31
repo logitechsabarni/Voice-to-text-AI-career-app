@@ -1,97 +1,145 @@
 
-import { ActionPlan, RoadmapPhase } from '../types';
+import { AIResponsePlan, AIResponseRoadmapPhase } from '../types';
 
 /**
- * Parses a string output from the Gemini AI into a structured ActionPlan object.
+ * Parses a string output from the Gemini AI into a structured AIResponsePlan object.
  * @param planString The raw string output from the AI.
- * @returns An ActionPlan object or null if parsing fails.
+ * @returns An AIResponsePlan object or null if parsing fails or structure is not matched.
  */
-export function parseActionPlan(planString: string): ActionPlan | null {
-  const result: Partial<ActionPlan> = {
-    roadmap: [],
-    dailyWeeklyPlan: [],
-    commonPitfalls: [],
-    nextActions: [],
+export function parseAIResponsePlan(planString: string): AIResponsePlan | null {
+  const result: Partial<AIResponsePlan> = {
+    updatedRoadmap: [],
+    progressTracking: {
+      completed: [],
+      inProgress: [],
+      nextUp: [],
+    },
+    nextInteractionOptions: [],
   };
 
   const lines = planString.split('\n').map(line => line.trim()).filter(line => line.length > 0);
 
-  let currentSection: 'title' | 'goalClarification' | 'roadmap' | 'dailyWeeklyPlan' | 'commonPitfalls' | 'nextActions' | null = null;
-  let currentPhase: RoadmapPhase | null = null;
+  let currentSection:
+    | 'contextSummary'
+    | 'roadmapStatus'
+    | 'updatedRoadmap'
+    | 'detailedGuidance'
+    | 'progressTracking'
+    | 'nextInteractionOptions'
+    | null = null;
+  let currentRoadmapPhase: AIResponseRoadmapPhase | null = null;
 
   for (const line of lines) {
-    if (line.startsWith('Title:')) {
-      result.title = line.substring('Title:'.length).trim();
-      currentSection = 'title';
+    if (line.startsWith('Context Summary:')) {
+      result.contextSummary = line.substring('Context Summary:'.length).trim();
+      currentSection = 'contextSummary';
       continue;
     }
-    if (line.startsWith('Goal Clarification:')) {
-      result.goalClarification = line.substring('Goal Clarification:'.length).trim();
-      currentSection = 'goalClarification';
+    if (line.startsWith('Roadmap Status:')) {
+      currentSection = 'roadmapStatus';
       continue;
     }
-    if (line.startsWith('Roadmap:')) {
-      currentSection = 'roadmap';
+    if (line.startsWith('Updated Roadmap:')) {
+      currentSection = 'updatedRoadmap';
       continue;
     }
-    if (line.startsWith('Daily or Weekly Plan:')) {
-      currentSection = 'dailyWeeklyPlan';
+    if (line.startsWith('Detailed Guidance:')) {
+      result.detailedGuidance = line.substring('Detailed Guidance:'.length).trim();
+      currentSection = 'detailedGuidance';
       continue;
     }
-    if (line.startsWith('Common Pitfalls:')) {
-      currentSection = 'commonPitfalls';
+    if (line.startsWith('Progress Tracking:')) {
+      currentSection = 'progressTracking';
       continue;
     }
-    if (line.startsWith('Next Actions:')) {
-      currentSection = 'nextActions';
+    if (line.startsWith('Next Interaction Options:')) {
+      currentSection = 'nextInteractionOptions';
       continue;
     }
 
-    // Handle sections
+    // Handle content within sections
     switch (currentSection) {
-      case 'goalClarification':
-        if (!result.goalClarification) { // if not already set by header
-            result.goalClarification = line;
+      case 'roadmapStatus':
+        // Fix: Initialize roadmapStatus with default values and parse roadmapVersion to number
+        if (!result.roadmapStatus) {
+            result.roadmapStatus = {
+                roadmapVersion: 0,
+                currentPhase: '',
+                keyFocus: '',
+            };
+        }
+        if (line.startsWith('- Roadmap Version:')) {
+          const versionString = line.substring('- Roadmap Version:'.length).trim();
+          const parsedVersion = parseInt(versionString.replace('v', ''));
+          result.roadmapStatus.roadmapVersion = isNaN(parsedVersion) ? 0 : parsedVersion; // Default to 0 if parsing fails
+        } else if (line.startsWith('- Current Phase:')) {
+          result.roadmapStatus.currentPhase = line.substring('- Current Phase:'.length).trim();
+        } else if (line.startsWith('- Key Focus:')) {
+          result.roadmapStatus.keyFocus = line.substring('- Key Focus:'.length).trim();
         }
         break;
-      case 'roadmap':
+      case 'updatedRoadmap':
         if (line.startsWith('Phase ')) {
-          if (currentPhase) {
-            result.roadmap?.push(currentPhase);
+          if (currentRoadmapPhase) {
+            result.updatedRoadmap?.push(currentRoadmapPhase);
           }
-          currentPhase = {
+          currentRoadmapPhase = {
             title: line,
             tasks: [],
             outcome: '',
           };
-        } else if (currentPhase) {
-          if (line.startsWith('- Task ')) {
-            currentPhase.tasks.push(line);
+        } else if (currentRoadmapPhase) {
+          if (line.startsWith('- Tasks:')) {
+            currentRoadmapPhase.tasks.push(line.substring('- Tasks:'.length).trim());
           } else if (line.startsWith('- Outcome:')) {
-            currentPhase.outcome = line.substring('- Outcome:'.length).trim();
+            currentRoadmapPhase.outcome = line.substring('- Outcome:'.length).trim();
           }
         }
         break;
-      case 'dailyWeeklyPlan':
-        result.dailyWeeklyPlan?.push(line);
+      case 'detailedGuidance':
+        if (!result.detailedGuidance) { // if not already set by header
+            result.detailedGuidance = line;
+        } else {
+            result.detailedGuidance += `\n${line}`; // Append additional lines to guidance
+        }
         break;
-      case 'commonPitfalls':
-        result.commonPitfalls?.push(line);
+      case 'progressTracking':
+        // Fix: Ensure progressTracking properties are initialized before pushing
+        if (!result.progressTracking) {
+          result.progressTracking = {
+            completed: [],
+            inProgress: [],
+            nextUp: [],
+          };
+        }
+        if (line.startsWith('- Completed:')) {
+          result.progressTracking.completed.push(line.substring('- Completed:'.length).trim());
+        } else if (line.startsWith('- In Progress:')) {
+          result.progressTracking.inProgress.push(line.substring('- In Progress:'.length).trim());
+        } else if (line.startsWith('- Next Up:')) {
+          result.progressTracking.nextUp.push(line.substring('- Next Up:'.length).trim());
+        }
         break;
-      case 'nextActions':
-        result.nextActions?.push(line);
+      case 'nextInteractionOptions':
+        result.nextInteractionOptions?.push(line.substring('-').trim()); // Remove leading '-'
         break;
     }
   }
 
   // Add the last phase if it exists
-  if (currentPhase) {
-    result.roadmap?.push(currentPhase);
+  if (currentRoadmapPhase) {
+    result.updatedRoadmap?.push(currentRoadmapPhase);
   }
 
-  // Validate minimum required fields for a plan
-  if (result.title && result.goalClarification && result.roadmap && result.roadmap.length > 0) {
-    return result as ActionPlan;
+  // Basic validation: ensure key parts are present
+  if (
+    result.contextSummary &&
+    result.roadmapStatus?.roadmapVersion !== undefined && // Check for existence as number
+    result.updatedRoadmap &&
+    result.detailedGuidance &&
+    result.progressTracking
+  ) {
+    return result as AIResponsePlan;
   }
   return null;
 }
