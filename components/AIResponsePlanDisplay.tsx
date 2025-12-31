@@ -11,8 +11,8 @@ const AIResponsePlanDisplay: React.FC<AIResponsePlanDisplayProps> = ({ plan }) =
     return null;
   }
 
-  const renderTasks = (tasks: string[]) => (
-    <ul className="list-disc list-inside space-y-1 text-gray-800 ml-4">
+  const renderTasks = (tasks: string[], isSubItem: boolean = false) => (
+    <ul className={`list-disc list-inside space-y-1 text-gray-800 ${isSubItem ? 'ml-6' : 'ml-4'}`}>
       {tasks.map((task, index) => (
         <li key={`task-${index}`}>{task}</li>
       ))}
@@ -50,45 +50,50 @@ const AIResponsePlanDisplay: React.FC<AIResponsePlanDisplayProps> = ({ plan }) =
   };
 
   return (
-    <div className="p-2">
+    <div className="p-2 space-y-6">
       {/* Context Summary */}
-      <p className="text-gray-700 text-lg mb-4">{plan.contextSummary}</p>
+      <div className="bg-gray-100 p-3 rounded-lg text-gray-700 text-lg shadow-sm">
+        <h3 className="text-xl font-bold text-gray-800 mb-2">Context Summary:</h3>
+        <p>{plan.contextSummary}</p>
+      </div>
 
       {/* Roadmap Status */}
       {plan.roadmapStatus && (
-        <div className="mb-4 bg-green-100 p-3 rounded-lg shadow-sm">
-          <h3 className="text-xl font-bold text-green-700 mb-2">Roadmap Status:</h3>
-          <ul className="list-none space-y-1 text-gray-800">
-            <li><span className="font-semibold">Roadmap Version:</span> {plan.roadmapStatus.roadmapVersion}</li>
-            <li><span className="font-semibold">Current Phase:</span> {plan.roadmapStatus.currentPhase}</li>
-            <li><span className="font-semibold">Key Focus:</span> {plan.roadmapStatus.keyFocus}</li>
+        <div className="bg-green-100 p-4 rounded-lg shadow-md border border-green-200">
+          <h3 className="text-xl font-bold text-green-700 mb-3">Roadmap Status:</h3>
+          <ul className="list-none space-y-2 text-gray-800">
+            <li><span className="font-semibold text-green-800">Roadmap Version:</span> {plan.roadmapStatus.roadmapVersion}</li>
+            <li><span className="font-semibold text-green-800">Current Phase:</span> {plan.roadmapStatus.currentPhase}</li>
+            <li><span className="font-semibold text-green-800">Key Focus:</span> {plan.roadmapStatus.keyFocus}</li>
           </ul>
         </div>
       )}
 
       {/* Updated Roadmap */}
       {plan.updatedRoadmap && plan.updatedRoadmap.length > 0 && (
-        <div className="mb-4">
-          <h3 className="text-xl font-bold text-green-700 mb-3">Updated Roadmap:</h3>
-          {plan.updatedRoadmap.map((phase: AIResponseRoadmapPhase, phaseIndex: number) => (
-            <div key={`updated-phase-${phaseIndex}`} className="mb-4 p-3 border border-green-200 rounded-lg bg-white shadow-sm">
-              <h4 className="text-lg font-semibold text-green-800 mb-2">{phase.title}</h4>
-              {phase.tasks.length > 0 && (
-                  <>
-                      <p className="font-medium text-gray-700">Tasks:</p>
-                      {renderTasks(phase.tasks)}
-                  </>
-              )}
-              {phase.outcome && <p className="mt-2 text-sm italic text-gray-600">Outcome: {phase.outcome}</p>}
-            </div>
-          ))}
+        <div>
+          <h3 className="text-2xl font-bold text-green-700 mb-4">Updated Roadmap:</h3>
+          <div className="space-y-4">
+            {plan.updatedRoadmap.map((phase: AIResponseRoadmapPhase, phaseIndex: number) => (
+              <div key={`updated-phase-${phaseIndex}`} className="p-4 border border-green-300 rounded-lg bg-white shadow-sm hover:shadow-md transition-shadow duration-200">
+                <h4 className="text-xl font-semibold text-green-800 mb-3">{phase.title}</h4>
+                {phase.tasks.length > 0 && (
+                    <>
+                        <p className="font-medium text-gray-700 mb-1">Tasks:</p>
+                        {renderTasks(phase.tasks)}
+                    </>
+                )}
+                {phase.outcome && <p className="mt-3 text-sm italic text-gray-600">Outcome: {phase.outcome}</p>}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
       {/* Detailed Guidance */}
       {plan.detailedGuidance && (
-        <div className="mb-4">
-          <h3 className="text-xl font-bold text-green-700 mb-2">Detailed Guidance:</h3>
+        <div className="bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-200">
+          <h3 className="text-xl font-bold text-blue-700 mb-3">Detailed Guidance:</h3>
           {/* Using pre-wrap to respect newlines for paragraph breaks */}
           <p className="text-gray-700 leading-relaxed whitespace-pre-wrap">{plan.detailedGuidance}</p>
         </div>
@@ -96,25 +101,25 @@ const AIResponsePlanDisplay: React.FC<AIResponsePlanDisplayProps> = ({ plan }) =
 
       {/* Progress Tracking */}
       {plan.progressTracking && (
-        <div className="mb-4 bg-green-100 p-3 rounded-lg shadow-sm">
-          <h3 className="text-xl font-bold text-green-700 mb-2">Progress Tracking:</h3>
+        <div className="bg-green-100 p-4 rounded-lg shadow-md border border-green-200">
+          <h3 className="text-xl font-bold text-green-700 mb-3">Progress Tracking:</h3>
           {plan.progressTracking.completed.length > 0 && (
-            <>
+            <div className="mb-2">
               <p className="font-semibold text-gray-800 mt-2">Completed:</p>
               {renderProgressItems(plan.progressTracking.completed, 'completed')}
-            </>
+            </div>
           )}
           {plan.progressTracking.inProgress.length > 0 && (
-            <>
+            <div className="mb-2">
               <p className="font-semibold text-gray-800 mt-2">In Progress:</p>
               {renderProgressItems(plan.progressTracking.inProgress, 'inProgress')}
-            </>
+            </div>
           )}
           {plan.progressTracking.nextUp.length > 0 && (
-            <>
+            <div className="mb-2">
               <p className="font-semibold text-gray-800 mt-2">Next Up:</p>
               {renderProgressItems(plan.progressTracking.nextUp, 'nextUp')}
-            </>
+            </div>
           )}
         </div>
       )}

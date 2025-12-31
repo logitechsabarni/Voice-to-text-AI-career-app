@@ -121,7 +121,8 @@ export function parseAIResponsePlan(planString: string): AIResponsePlan | null {
         }
         break;
       case 'nextInteractionOptions':
-        result.nextInteractionOptions?.push(line.substring('-').trim()); // Remove leading '-'
+        // Fix: Use numeric index for substring to remove leading '-'
+        result.nextInteractionOptions?.push(line.substring(1).trim()); // Remove leading '-'
         break;
     }
   }

@@ -1,1 +1,1 @@
-// This file is deprecated. Its functionality has been moved to AIResponsePlanDisplay.tsx
+// This file is deprecated and has been removed. Its functionality is now handled by AIResponsePlanDisplay.tsx

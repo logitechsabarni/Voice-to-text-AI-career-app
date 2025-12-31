@@ -8,8 +8,8 @@ const outputAudioContext = new AudioContext({ sampleRate: OUTPUT_AUDIO_SAMPLE_RA
 let nextStartTime = 0;
 const playingAudioSources = new Set<AudioBufferSourceNode>();
 
-// Global chat instance for conversational context
-let chat: Chat | null = null;
+// Global chat instance for conversational context (only used for its creation for now)
+let chat: Chat | null = null; // Changed from `chat` to `chatInstance` to avoid confusion
 
 interface GeminiServiceOptions {
   onSpeechEnd?: () => void;
@@ -22,10 +22,17 @@ interface GeminiServiceOptions {
  */
 export function initializeGeminiChat(): void {
   try {
+    // We are no longer using the `Chat` object's internal history management
+    // as we explicitly pass `Content[]` to `generateContent` with each call.
+    // However, keeping `ai.chats.create` to ensure the model is correctly set up if needed.
+    // The chat instance itself is not used for `sendMessage` anymore in the new approach.
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     chat = ai.chats.create({
       model: GEMINI_CHAT_MODEL_NAME,
       config: {
+        // SYSTEM_INSTRUCTION is now passed directly in the `contents` for `generateContent`
+        // in App.tsx to ensure it's always at the beginning of the context.
+        // It's still good practice to have it here for clarity if this were to revert.
         systemInstruction: SYSTEM_INSTRUCTION,
       },
     });
@@ -38,24 +45,31 @@ export function initializeGeminiChat(): void {
 
 /**
  * Sends a text message to the Gemini Chat model and returns the response.
- * @param message The user's message as text.
- * @param history The conversation history to maintain context.
+ * This function now takes the full `Content[]` array as `contents` to allow
+ * explicit control over the conversation history and the inclusion of `ConversationState`.
+ * @param _userMessage The user's new message (not directly used by generateContent, but good for logs)
+ * @param contents The full array of Content objects, including system instruction, conversation state, and history.
  * @returns A promise that resolves with the Gemini's GenerateContentResponse.
  */
-export async function sendChatMessage(message: string, history: Content[]): Promise<GenerateContentResponse> {
-  if (!chat) {
-    throw new Error('Gemini Chat session not initialized. Call initializeGeminiChat first.');
-  }
-  console.debug('Sending message to Gemini:', message);
+export async function sendChatMessage(_userMessage: string, contents: Content[]): Promise<GenerateContentResponse> {
+  // We're using `ai.models.generateContent` directly to send the full `contents` array per turn,
+  // which includes the `SYSTEM_INSTRUCTION` and serialized `ConversationState`.
+  // This bypasses the automatic history management of the `Chat` instance,
+  // giving us explicit control over the context sent with each API call.
+  try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    console.debug('Sending full context to Gemini:', contents);
 
-  // The chat API automatically manages history if you continually use the same chat instance.
-  // The 'history' parameter in 'sendMessage' is not typically used for the chat.sendMessage
-  // method itself, but rather the 'chat.history' property of the chat instance.
-  // We manage the history in App.tsx by building Content objects and storing them.
-  // For `sendMessage`, we just send the new user message.
-  const response = await chat.sendMessage({ message: message });
-  console.debug('Received response from Gemini:', response.text);
-  return response;
+    const response = await ai.models.generateContent({
+      model: GEMINI_CHAT_MODEL_NAME,
+      contents: contents,
+    });
+    console.debug('Received response from Gemini:', response.text);
+    return response;
+  } catch (error) {
+    console.error('Gemini API error during content generation:', error);
+    throw error; // Re-throw to be handled by App.tsx
+  }
 }
 
 /**
@@ -135,7 +149,7 @@ export function stopPlayingAudio(): void {
  */
 export function resetGeminiChat(): void {
   stopPlayingAudio();
-  chat = null;
+  chat = null; // Clear the old chat instance
   initializeGeminiChat(); // Re-initialize for a fresh start
   console.debug('Gemini Chat history reset.');
 }

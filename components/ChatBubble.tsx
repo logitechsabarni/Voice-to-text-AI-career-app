@@ -14,7 +14,7 @@ const ChatBubble: React.FC<ChatBubbleProps> = ({ message, onNextActionClick }) =
   const isAIPlan = message.aiResponsePlan !== undefined;
 
   const bubbleClasses = `
-    p-3 rounded-lg max-w-[80%] relative
+    p-3 rounded-xl max-w-[80%] relative break-words
     ${isUser ? 'bg-blue-500 text-white self-end rounded-br-none' : 'bg-gray-200 text-gray-800 self-start rounded-bl-none'}
     ${isAIPlan ? 'bg-gradient-to-br from-green-50 to-green-100 border border-green-200 text-gray-800' : ''}
     ${message.isGeneratingAudio ? 'animate-pulse' : ''}

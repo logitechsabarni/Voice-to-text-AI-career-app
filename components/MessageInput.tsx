@@ -63,7 +63,7 @@ const MessageInput: React.FC<MessageInputProps> = ({
       <textarea
         ref={textareaRef}
         className="flex-1 resize-none overflow-hidden rounded-lg border border-gray-300 p-3 shadow-sm focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:cursor-not-allowed"
-        placeholder={isRecording ? "Listening..." : (isSpeaking ? "AI is speaking..." : "Type your goal or question...")}
+        placeholder={isRecording ? "Listening..." : (isSpeaking ? "AI is speaking..." : "Describe your goal or update your progress...")}
         rows={1}
         value={inputValue}
         onChange={(e) => setInputValue(e.target.value)}

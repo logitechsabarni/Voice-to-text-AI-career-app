@@ -50,17 +50,3 @@ export interface ConversationMessage {
   isGeneratingAudio?: boolean; // New prop to indicate audio generation
   rawResponseText?: string; // To store the full raw text for copy feature
 }
-
-// --- Action Plan (Inferred for ActionPlanDisplay.tsx component) ---
-// This interface is inferred from the usage in components/ActionPlanDisplay.tsx
-export interface ActionPlan {
-  title: string;
-  goalClarification: string;
-  roadmap?: {
-    title: string;
-    tasks: string[];
-    outcome?: string;
-  }[];
-  dailyWeeklyPlan?: string[];
-  commonPitfalls?: string[];
-}

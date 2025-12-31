@@ -257,6 +257,7 @@ function App() {
     });
 
     // Prepend the ConversationState to the current user message for Gemini
+    // Ensure the structure matches Content[] expected by the API
     const userContentWithState: Content = {
       role: 'user',
       parts: [
@@ -265,8 +266,22 @@ function App() {
       ]
     };
 
-    chatHistory.push(userContentWithState); // Add the current user message with state to the history
-    // The system instruction is already configured in initializeGeminiChat, so it doesn't need to be in chatHistory.
+    // Append the user's new message (with state) to the chat history for this specific API call
+    // Note: The `chat.sendMessage` method expects *only* the new message.
+    // The previous `chatHistory` is implicitly maintained by the `chat` instance.
+    // However, the prompt implies that the full history, *including* the state, should be sent with each `generateContent` call.
+    // To strictly align with the Gemini Guidelines and the user's intent to send `ConversationState` with *every* user message
+    // (as if it's part of the current turn's context), we will send the user message augmented with the ConversationState directly.
+    // The `chat.sendMessage` method in the SDK is designed for simple text messages within a `Chat` instance that manages `chat.history`.
+    // If we want to send the full `Content[]` including `ConversationState` as the *entire context for a turn*,
+    // we would typically use `ai.models.generateContent` directly with `contents: chatHistory`.
+    // Given the prompt emphasizes `chat` (for memory) and `ConversationState` (for explicit context),
+    // and the previous implementation already uses `chat.sendMessage`,
+    // I will adjust `sendChatMessage` to allow sending a custom `Content[]` if needed, but for `chat.sendMessage` it's simpler.
+    // For now, I'll pass `text` and rely on the `SYSTEM_INSTRUCTION` to prompt the AI to look for the ConversationState in the preceding turns.
+    // The `history` parameter in `sendChatMessage` is not used in the original `chat.sendMessage` call in `geminiService.ts`.
+    // Let's modify `sendChatMessage` to accept and use the full `Content[]` as its `contents` parameter for `generateContent` directly,
+    // thereby bypassing `chat.sendMessage` if a full history/state is to be provided per turn.
 
     const geminiMessagePlaceholder: ConversationMessage = {
       id: crypto.randomUUID(),
@@ -277,7 +292,16 @@ function App() {
     setMessages((prev) => [...prev, geminiMessagePlaceholder]);
 
     try {
-      const geminiResponse = await sendChatMessage(text, chatHistory); // Pass actual user message and full history
+      // The `chatHistory` built here represents the *full context for the turn*, including state and previous messages.
+      // This is now passed directly to `sendChatMessage` to be used with `ai.models.generateContent` instead of `chat.sendMessage`
+      // to allow explicit inclusion of `ConversationState` in the `contents` for each turn.
+      const fullContextForGemini: Content[] = [
+        { role: 'system', parts: [{ text: SYSTEM_INSTRUCTION }] }, // Ensure system instruction is first
+        ...chatHistory.slice(0, chatHistory.length - 1), // All previous messages except the current user message
+        userContentWithState // The current user message, augmented with ConversationState
+      ];
+
+      const geminiResponse = await sendChatMessage(text, fullContextForGemini); // Pass the full context
       const responseText = geminiResponse.text || "No response text.";
 
       let parsedAIResponsePlan: AIResponsePlan | null = null;
@@ -367,8 +391,11 @@ function App() {
       {/* Inject custom CSS for animation */}
       <style>{animateCss}</style>
 
-      <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-md flex items-center justify-between">
-        <h1 className="text-xl font-bold md:text-2xl">Thought-to-Action AI Agent</h1>
+      <header className="bg-gradient-to-r from-blue-600 to-indigo-700 text-white p-4 shadow-md flex items-center justify-between z-10 sticky top-0">
+        <div>
+          <h1 className="text-xl font-bold md:text-2xl">Thought-to-Action AI Agent</h1>
+          <p className="text-sm opacity-90 mt-1">Turn ideas into clear action plans</p>
+        </div>
         <div className="flex items-center space-x-4">
           {isSending && (
             <span className="text-sm font-medium animate-pulse">Thinking...</span>
@@ -407,7 +434,7 @@ function App() {
         ))}
       </main>
 
-      <footer className="sticky bottom-0 bg-white">
+      <footer className="sticky bottom-0 bg-white z-10">
         <MessageInput
           onSendMessage={handleSendMessage}
           isSending={isSending}
